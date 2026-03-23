@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BeeWell — Auth Flow Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -415,12 +416,81 @@ body {
   opacity: 0; transition: opacity .3s;
 }
 .indicator.show { opacity: 1; }
+
+/* ─────────────────────────────────────────
+   MOBILE FAB + DRAWER SIDEBAR
+───────────────────────────────────────── */
+#mob-close {
+  display: none;
+  position: absolute; top: 10px; right: 10px;
+  background: none; border: none;
+  color: #888; font-size: 24px; line-height: 1;
+  cursor: pointer; padding: 6px; z-index: 1;
+}
+#mob-close:hover { color: #ccc; }
+
+#mob-fab {
+  display: none;
+  position: fixed; bottom: 28px; right: 20px;
+  width: 44px; height: 44px; border-radius: 12px;
+  background: rgba(20,20,20,.82);
+  border: none; color: #fff;
+  font-size: 20px; line-height: 1;
+  align-items: center; justify-content: center;
+  cursor: pointer; z-index: 9999;
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+#mob-fab.vis { opacity: 1; pointer-events: auto; }
+
+#mob-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 10000;
+}
+#mob-overlay.show { display: block; }
+
+/* ── Responsive breakpoint ── */
+@media (max-width: 540px) {
+  body {
+    padding: 0 !important;
+    display: block !important;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #6762ff;
+  }
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform .3s ease;
+    width: 260px;
+    z-index: 10001;
+    border-right: 1px solid #3d3d3d;
+  }
+  .sidebar.mob-open { transform: translateX(0); }
+  .frame {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    transform-origin: top left;
+  }
+  #mob-close { display: flex !important; }
+  #mob-fab   { display: flex !important; }
+  .indicator { bottom: 70px; }
+}
 </style>
 </head>
 <body>
 
+<!-- ── Mobile overlay + FAB ── -->
+<div id="mob-overlay" onclick="closeMobSidebar()"></div>
+<button id="mob-fab" onclick="openMobSidebar()">&#9776;</button>
+
 <!-- ── Sidebar ── -->
 <aside class="sidebar">
+  <button id="mob-close" onclick="closeMobSidebar()">&#x2715;</button>
   <div class="sb-header">Flows</div>
 
   <div class="sb-flow open" id="flow-auth">
@@ -817,6 +887,8 @@ function go(id) {
   ind.classList.add('show');
   clearTimeout(ind._t);
   ind._t = setTimeout(() => ind.classList.remove('show'), 1800);
+
+  closeMobSidebar();
 }
 
 // ── Toggle flow section ──
@@ -976,10 +1048,60 @@ function resetAll() {
   clearPass5();
 }
 
+// ── Mobile: FAB + Drawer sidebar ──
+let _fabTimer = null;
+
+function isMobile() { return window.innerWidth <= 540; }
+
+function showFab() {
+  if (!isMobile()) return;
+  const fab = document.getElementById('mob-fab');
+  fab.classList.add('vis');
+  clearTimeout(_fabTimer);
+  _fabTimer = setTimeout(() => fab.classList.remove('vis'), 2000);
+}
+
+function openMobSidebar() {
+  document.querySelector('.sidebar').classList.add('mob-open');
+  document.getElementById('mob-overlay').classList.add('show');
+  const fab = document.getElementById('mob-fab');
+  clearTimeout(_fabTimer);
+  fab.classList.remove('vis');
+}
+
+function closeMobSidebar() {
+  document.querySelector('.sidebar').classList.remove('mob-open');
+  document.getElementById('mob-overlay').classList.remove('show');
+}
+
+// Show FAB on any tap (except over sidebar/overlay/fab itself)
+document.addEventListener('click', function(e) {
+  if (!isMobile()) return;
+  if (e.target.closest('#mob-fab, .sidebar, #mob-overlay')) return;
+  showFab();
+});
+
+// Scale frame to fill mobile viewport (width-based)
+function scaleFrame() {
+  const frame = document.getElementById('frame');
+  if (!frame) return;
+  if (isMobile()) {
+    const scale = window.innerWidth / 440;
+    frame.style.transform = 'scale(' + scale + ')';
+    frame.style.transformOrigin = 'top left';
+  } else {
+    frame.style.transform = '';
+    frame.style.transformOrigin = '';
+  }
+}
+
+window.addEventListener('resize', scaleFrame);
+
 // ── Init ──
 startTimer();
 checkReqs();
 checkReqs6();
+scaleFrame();
 </script>
 </body>
 </html>
