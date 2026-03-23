@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>BeeWell — Auth Flow Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: #1a1a2e;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  padding-left: calc(220px + 32px);
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #262626;
+  border-radius: 0;
+  padding: 0 0 16px;
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #4f4f4f #262626;
+  z-index: 100;
+}
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-track { background: #262626; }
+.sidebar::-webkit-scrollbar-thumb { background: #4f4f4f; border-radius: 4px; }
+
+.sb-header {
+  padding: 16px 16px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #6f6f6f;
+  border-bottom: 1px solid #3d3d3d;
+  margin-bottom: 8px;
+}
+
+.sb-flow {
+  padding: 0 8px;
+}
+
+.sb-flow-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #e7e7e7;
+  font-size: 13px;
+  font-weight: 500;
+  user-select: none;
+}
+.sb-flow-label:hover { background: #3d3d3d; }
+.sb-chevron {
+  font-size: 10px;
+  color: #888;
+  transition: transform .2s;
+}
+.sb-flow.open .sb-chevron { transform: rotate(90deg); }
+.sb-flow-icon { font-size: 15px; }
+
+.sb-screens {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0 4px;
+}
+.sb-flow.open .sb-screens { display: flex; }
+
+.sb-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s;
+  border: 2px solid transparent;
+}
+.sb-thumb:hover { background: #3d3d3d; }
+.sb-thumb.active {
+  background: #3d3d3d;
+  border-color: #6762ff;
+}
+
+.sb-thumb img {
+  width: 154px;
+  height: 100%;
+  aspect-ratio: 440 / 956;
+  border-radius: 8px;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+  background: #454545;
+}
+
+.sb-thumb-name {
+  font-size: 11px;
+  font-weight: 400;
+  color: #b0b0b0;
+  text-align: center;
+  line-height: 1.3;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sb-thumb.active .sb-thumb-name { color: #fff; }
+
+/* ── Frame 440×956px ── */
+.frame {
+  width: 440px;
+  height: 956px;
+  background: #6762ff;
+  border-radius: 40px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 32px 64px rgba(0,0,0,0.5);
+  flex-shrink: 0;
+}
+
+/* ── Hex decorations ── */
+@keyframes hex-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-12px); }
+}
+
+.hex-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Screens ── */
+.screen { position: absolute; inset: 0; display: none; z-index: 1; }
+.screen.active { display: block; }
+
+/* ── White card ── */
+.card {
+  position: absolute;
+  left: 16px;
+  width: 408px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 0 16px;
+  overflow: hidden;
+}
+
+/* ── Logo ── */
+.logo-img {
+  display: block;
+  width: 376px;
+  height: 122px;
+  object-fit: contain;
+  margin: 40px 0 0;
+}
+
+/* ── Typography tokens ── */
+.h6   { font-size: 24px; font-weight: 700; line-height: 100%; }
+.sub-xl { font-size: 20px; font-weight: 700; color: #454545; line-height: 100%; }
+.sub-xl-success { font-size: 22px; font-weight: 700; color: #454545; }
+.body-s { font-size: 14px; font-weight: 400; color: #5d5d5d; line-height: 1.5; }
+
+/* ── Input — standard (screen 1) ── */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #424242;
+}
+.field .input-wrap { position: relative; }
+.field input {
+  width: 100%;
+  height: 50px;
+  background: #f6f6f6;
+  border: 1px solid #b0b0b0;
+  border-radius: 4px;
+  padding: 0 44px 0 12px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: #262626;
+  outline: none;
+  transition: border-color .15s;
+}
+.field input::placeholder { color: #888; }
+.field input:focus { border: 1.5px solid #b9a4ff; }
+.field input.err { border: 1.5px solid #ed4664; background: #fef2f3; }
+.field .iico {
+  position: absolute; right: 12px; top: 50%;
+  transform: translateY(-50%);
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: #6f6f6f;
+}
+.field .iico svg { width: 18px; height: 18px; }
+.helper {
+  font-size: 12px; font-weight: 400; color: #616161;
+  cursor: pointer;
+}
+.helper-link { color: #ff6600; text-decoration: none; font-size: 12px; cursor: pointer; }
+.helper-link:hover { text-decoration: underline; }
+
+/* ── Input — MOBILE variant (screens 2, 5, 6) ── */
+.field-m label {
+  font-size: 18px;
+  font-weight: 700;
+  color: #424242;
+  display: block;
+  margin-bottom: 8px;
+}
+.field-m .input-wrap { position: relative; }
+.field-m input {
+  width: 100%;
+  height: 44px;
+  background: #f6f6f6;
+  border: 1px solid #b0b0b0;
+  border-radius: 4px;
+  padding: 0 44px 0 12px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  color: #262626;
+  outline: none;
+  transition: border-color .15s;
+}
+.field-m input::placeholder { color: #888; }
+.field-m input:focus { border: 1.5px solid #b9a4ff; }
+.field-m input.err { border: 1.5px solid #ed4664; background: #fef2f3; }
+.field-m .iico {
+  position: absolute; right: 12px; top: 50%;
+  transform: translateY(-50%);
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: #6f6f6f;
+}
+
+/* ── Botão Especial #1 — 3D ── */
+.btn3d {
+  position: relative;
+  width: 376px;
+  height: 49px; /* 44px surface + 5px shadow space */
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  display: block;
+}
+.btn3d .sh {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 44px;
+  border-radius: 16px;
+  background: #cc4902;
+  z-index: 1;
+}
+.btn3d .sf {
+  position: absolute;
+  left: 0; right: 0; bottom: 5px;
+  height: 44px;
+  border-radius: 16px;
+  background: #ff6600;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f6f6f6;
+  transition: bottom .12s ease;
+}
+.btn3d:active .sf { bottom: 0; }
+.btn3d:hover .sf { box-shadow: inset 0 0 0 2px #cc4902; }
+
+/* Disabled state */
+.btn3d.off { pointer-events: none; cursor: not-allowed; }
+.btn3d.off .sh { background: #b0b0b0; }
+.btn3d.off .sf { background: #d1d1d1; color: #888; box-shadow: none; }
+
+/* ── OTP row ── */
+.otp-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.otp-cell {
+  width: 54px;
+  height: 67px;
+  border: 1px solid #d1d1d1;
+  border-radius: 8px;
+  background: #f6f6f6;
+  font-family: 'Poppins', sans-serif;
+  font-size: 20px;
+  font-weight: 500;
+  color: #262626;
+  text-align: center;
+  outline: none;
+  caret-color: #6762ff;
+  transition: border-color .15s;
+}
+.otp-cell:focus { border: 2px solid #262626; }
+.otp-cell.err { border: 1.5px solid #ed4664; color: #ed4664; }
+
+/* ── Timer ── */
+.timer-row {
+  text-align: center;
+  font-size: 14px;
+  color: #6f6f6f;
+}
+.timer-val { color: #6762ff; font-weight: 600; }
+
+/* ── "Não recebeu?" link ── */
+.resend-row {
+  text-align: center;
+  font-size: 14px;
+  color: #5d5d5d;
+}
+.resend-row button {
+  background: none; border: none; padding: 0;
+  font-family: 'Poppins', sans-serif; font-size: 14px;
+  font-weight: 600; color: #ff6600; cursor: pointer;
+}
+.resend-row button:hover { text-decoration: underline; }
+
+/* ── Feedback banner ── */
+.feedback {
+  background: #fce4e4;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.feedback-icon {
+  width: 24px; height: 24px; flex-shrink: 0;
+  color: #b12424; font-size: 18px; line-height: 1;
+  margin-top: 1px;
+}
+.feedback-text {
+  font-size: 14px; font-weight: 400; color: #b12424; line-height: 1.5;
+}
+
+/* ── Password requirements ── */
+.req-list { display: flex; flex-direction: column; gap: 4px; }
+.req-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 400; color: #6f6f6f;
+}
+.req-item.ok { color: #017b55; }
+.req-item.fail { color: #b81d2a; }
+.req-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #b0b0b0; flex-shrink: 0;
+  font-size: 0;
+}
+.req-item.ok .req-dot  { background: #0bbe97; }
+.req-item.fail .req-dot { background: #ed4664; }
+
+/* ── Back / link ── */
+.back-link {
+  display: block; text-align: center;
+  font-size: 14px; font-weight: 400;
+  color: #ff6600; cursor: pointer;
+  background: none; border: none;
+  font-family: 'Poppins', sans-serif;
+  padding: 0;
+}
+.back-link:hover { text-decoration: underline; }
+
+/* ── Success icon ── */
+.icon-sucesso {
+  width: 72px; height: 39px; border-radius: 36px;
+  background: #e5facd;
+  display: flex; align-items: center; justify-content: center;
+  margin: 40px auto 0;
+  font-size: 32px; font-weight: 700; color: #000;
+  line-height: 1;
+}
+
+/* ── Footer text ── */
+.footer-txt {
+  position: absolute; bottom: 30px; left: 0; right: 0;
+  text-align: center;
+  font-size: 14px; font-weight: 400; color: #9ca9ff;
+  z-index: 2; pointer-events: none;
+}
+
+/* ── Screen indicator (dev helper) ── */
+.indicator {
+  position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,.55); color: #fff;
+  font-family: monospace; font-size: 11px;
+  padding: 3px 12px; border-radius: 20px;
+  pointer-events: none; z-index: 9999;
+  opacity: 0; transition: opacity .3s;
+}
+.indicator.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="sb-header">Flows</div>
+
+  <div class="sb-flow open" id="flow-auth">
+    <div class="sb-flow-label" onclick="toggleFlow('flow-auth')">
+      <span class="sb-chevron">▶</span>
+      <span class="sb-flow-icon">🔐</span>
+      <span>Autenticação</span>
+    </div>
+
+    <div class="sb-screens">
+      <div class="sb-thumb active" id="thumb-s1" onclick="go('s1')">
+        <img src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/b7052fd6-8a99-471e-be04-d7eb6e894729" alt="Login">
+        <span class="sb-thumb-name">Login</span>
+      </div>
+      <div class="sb-thumb" id="thumb-s2" onclick="go('s2')">
+        <img src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/db370dd1-11b0-44c4-83c4-31a324073b2a" alt="Esqueci senha">
+        <span class="sb-thumb-name">Esqueci senha</span>
+      </div>
+      <div class="sb-thumb" id="thumb-s3" onclick="go('s3')">
+        <img src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/e602f998-956c-40ac-a70f-ac7fabc27803" alt="Verificação OTP">
+        <span class="sb-thumb-name">Verificação OTP</span>
+      </div>
+      <div class="sb-thumb" id="thumb-s4" onclick="go('s4')">
+        <img src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/06019ab8-13bd-4e01-a98e-b85916ab7af4" alt="Código inválido">
+        <span class="sb-thumb-name">Código inválido</span>
+      </div>
+      <div class="sb-thumb" id="thumb-s5" onclick="go('s5')">
+        <img src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/0e585ade-486e-46c2-aa8e-d5f8abacb193" alt="Nova senha">
+        <span class="sb-thumb-name">Nova senha</span>
+      </div>
+      <div class="sb-thumb" id="thumb-s6" onclick="go('s6')">
+        <img src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/9ffefbb5-00c8-4e62-9565-e05f37f68074" alt="Erro validação">
+        <span class="sb-thumb-name">Erro validação</span>
+      </div>
+      <div class="sb-thumb" id="thumb-s7" onclick="go('s7')">
+        <img src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/d6cb9502-948a-4b65-a5df-3ab82d604592" alt="Senha alterada">
+        <span class="sb-thumb-name">Senha alterada</span>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<div class="frame" id="frame">
+
+  <!-- ── Hex background decorations (path exato do Figma, filled #757bff) ── -->
+  <div class="hex-bg">
+    <!-- topo-direita: x:318 y:61 — animation-delay:0s -->
+    <svg style="position:absolute;left:318px;top:61px;animation:hex-float 5s ease-in-out infinite;" width="106" height="118" viewBox="0 0 106 118">
+      <path d="M 0 85.534 C 0 87.78 1.218 89.733 3.118 90.709 L 49.639 116.926 C 50.564 117.658 51.733 118 53 118 C 54.267 118 55.436 117.658 56.361 116.926 L 102.882 90.709 C 103.808 90.221 104.636 89.489 105.172 88.561 C 105.708 87.633 106 86.608 106 85.534 L 106 32.466 C 106 30.22 104.782 28.267 102.882 27.291 L 56.313 1.074 C 55.387 0.342 54.169 0 52.951 0 C 51.733 0 50.516 0.342 49.59 1.074 L 3.118 27.242 C 1.218 28.267 0 30.171 0 32.417 Z" fill="#757bff"/>
+    </svg>
+    <!-- baixo-esquerda: x:16 y:787 — animation-delay:-2.5s (fase oposta) -->
+    <svg style="position:absolute;left:16px;top:787px;animation:hex-float 5s ease-in-out infinite;animation-delay:-2.5s;" width="106" height="118" viewBox="0 0 106 118">
+      <path d="M 0 85.534 C 0 87.78 1.218 89.733 3.118 90.709 L 49.639 116.926 C 50.564 117.658 51.733 118 53 118 C 54.267 118 55.436 117.658 56.361 116.926 L 102.882 90.709 C 103.808 90.221 104.636 89.489 105.172 88.561 C 105.708 87.633 106 86.608 106 85.534 L 106 32.466 C 106 30.22 104.782 28.267 102.882 27.291 L 56.313 1.074 C 55.387 0.342 54.169 0 52.951 0 C 51.733 0 50.516 0.342 49.59 1.074 L 3.118 27.242 C 1.218 28.267 0 30.171 0 32.417 Z" fill="#757bff"/>
+    </svg>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       S1 — LOGIN
+       card: top 215px, h 526px
+  ════════════════════════════════════════ -->
+  <div class="screen active" id="s1">
+    <div class="card" style="top:215px; height:526px;">
+
+      <!-- Logo -->
+      <img class="logo-img"
+           src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/2d25bc81-f408-44df-92aa-e3f7664c5f8b"
+           alt="BeeWell" onerror="this.style='display:none'">
+
+      <!-- Inputs — gap 40px from logo bottom -->
+      <div style="margin-top:40px; display:flex; flex-direction:column; gap:0;">
+
+        <!-- Email -->
+        <div class="field">
+          <label>E-mail</label>
+          <div class="input-wrap">
+            <input type="email" id="s1-email" placeholder="Digite seu e-mail">
+            <span class="iico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 7l10 7 10-7"/></svg></span>
+          </div>
+        </div>
+
+        <!-- Password — 24px gap -->
+        <div class="field" style="margin-top:24px;">
+          <label>Senha</label>
+          <div class="input-wrap">
+            <input type="password" id="s1-pass" placeholder="Digite sua senha">
+            <span class="iico" onclick="togglePass('s1-pass',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+          </div>
+          <span class="helper-link" onclick="go('s2')">Esqueci a senha</span>
+        </div>
+
+      </div>
+
+      <!-- Button — gap 40px from inputs bottom -->
+      <div style="margin-top:40px;">
+        <button class="btn3d" onclick="go('s2')">
+          <div class="sh"></div><div class="sf">Entrar</div>
+        </button>
+      </div>
+
+    </div>
+    <div class="footer-txt">Plataforma Beewell</div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       S2 — ESQUECEU SUA SENHA?
+       card: top 206px, h 544px
+  ════════════════════════════════════════ -->
+  <div class="screen" id="s2">
+    <div class="card" style="top:206px; height:544px;">
+
+      <img class="logo-img"
+           src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/2d25bc81-f408-44df-92aa-e3f7664c5f8b"
+           alt="BeeWell" onerror="this.style='display:none'">
+
+      <!-- Title — gap 24px from logo bottom (logo bottom = 40+120=160; title at 186 → 26≈24px) -->
+      <p class="sub-xl" style="margin-top:26px; text-align:center;">Esqueceu sua senha?</p>
+
+      <!-- Description — gap 24px -->
+      <p class="body-s" style="margin-top:24px; text-align:center;">Digite seu e-mail cadastrado para<br>receber o código de recuperação.</p>
+
+      <!-- Email input — gap 24px -->
+      <div class="field-m" style="margin-top:24px;">
+        <label>E-mail</label>
+        <div class="input-wrap">
+          <input type="email" id="s2-email" placeholder="Digite seu e-mail">
+          <span class="iico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 7l10 7 10-7"/></svg></span>
+        </div>
+      </div>
+
+      <!-- Button — gap 24px -->
+      <div style="margin-top:24px;">
+        <button class="btn3d" onclick="go('s3'); startTimer()">
+          <div class="sh"></div><div class="sf">Enviar código</div>
+        </button>
+      </div>
+
+      <!-- Back — gap 24px -->
+      <button class="back-link" style="margin-top:24px;" onclick="go('s1')">← Voltar para o login</button>
+
+    </div>
+    <div class="footer-txt">Plataforma Beewell</div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       S3 — VERIFICAÇÃO OTP
+       card: top 204px, h 549px
+  ════════════════════════════════════════ -->
+  <div class="screen" id="s3">
+    <div class="card" style="top:204px; height:549px;">
+
+      <img class="logo-img"
+           src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/2d25bc81-f408-44df-92aa-e3f7664c5f8b"
+           alt="BeeWell" onerror="this.style='display:none'">
+
+      <p class="sub-xl" style="margin-top:24px; text-align:center;">Verifique seu e-mail</p>
+
+      <p class="body-s" style="margin-top:24px; text-align:center;">Enviamos um código de 6 dígitos.<br>Insira-o abaixo para continuar.</p>
+
+      <!-- OTP — gap 24px -->
+      <div class="otp-row" style="margin-top:24px;" id="s3-otp">
+        <input class="otp-cell" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="0">
+        <input class="otp-cell" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="1">
+        <input class="otp-cell" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="2">
+        <input class="otp-cell" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="3">
+        <input class="otp-cell" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="4">
+        <input class="otp-cell" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="5">
+      </div>
+
+      <!-- Timer — gap 24px -->
+      <div class="timer-row" style="margin-top:24px;">
+        <span class="timer-val" id="s3-timer">1m51s</span>
+      </div>
+
+      <!-- Resend — gap 24px -->
+      <div class="resend-row" style="margin-top:24px; text-align:center;">
+        Não recebeu? <button onclick="resend()">Reenviar código</button>
+      </div>
+
+      <!-- Button — gap 24px -->
+      <div style="margin-top:24px;">
+        <button class="btn3d" onclick="verifyOTP()">
+          <div class="sh"></div><div class="sf">Verificar</div>
+        </button>
+      </div>
+
+    </div>
+    <div class="footer-txt">Plataforma Beewell</div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       S4 — CÓDIGO INVÁLIDO
+       card: top 175px, h 606px
+  ════════════════════════════════════════ -->
+  <div class="screen" id="s4">
+    <div class="card" style="top:175px; height:606px;">
+
+      <img class="logo-img"
+           src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/2d25bc81-f408-44df-92aa-e3f7664c5f8b"
+           alt="BeeWell" onerror="this.style='display:none'">
+
+      <!-- Feedback banner — gap 24px -->
+      <div class="feedback" style="margin-top:24px;">
+        <span class="feedback-icon">⚠</span>
+        <p class="feedback-text">Código inválido ou expirado.<br>Solicite um novo código.</p>
+      </div>
+
+      <p class="sub-xl" style="margin-top:24px; text-align:center;">Código inválido</p>
+
+      <p class="body-s" style="margin-top:24px; text-align:center;">O código está incorreto ou expirou.<br>Solicite um novo código.</p>
+
+      <!-- OTP error cells — gap 24px -->
+      <div class="otp-row" style="margin-top:24px;">
+        <input class="otp-cell err" maxlength="1" value="1" readonly>
+        <input class="otp-cell err" maxlength="1" value="1" readonly>
+        <input class="otp-cell err" maxlength="1" value="1" readonly>
+        <input class="otp-cell err" maxlength="1" value="1" readonly>
+        <input class="otp-cell err" maxlength="1" value="1" readonly>
+        <input class="otp-cell err" maxlength="1" value="1" readonly>
+      </div>
+
+      <!-- Button — gap 24px -->
+      <div style="margin-top:24px;">
+        <button class="btn3d" onclick="resend()">
+          <div class="sh"></div><div class="sf">Reenviar código</div>
+        </button>
+      </div>
+
+      <!-- Back — gap 24px -->
+      <button class="back-link" style="margin-top:24px;" onclick="go('s1')">← Voltar para o login</button>
+
+    </div>
+    <div class="footer-txt">Plataforma Beewell</div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       S5 — CRIAR NOVA SENHA
+       card: top 126px, h 704px
+  ════════════════════════════════════════ -->
+  <div class="screen" id="s5">
+    <div class="card" style="top:126px; height:704px;">
+
+      <img class="logo-img"
+           src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/2d25bc81-f408-44df-92aa-e3f7664c5f8b"
+           alt="BeeWell" onerror="this.style='display:none'">
+
+      <p class="sub-xl" style="margin-top:20px;">Crie sua nova senha</p>
+
+      <!-- Nova senha — gap 20px -->
+      <div class="field-m" style="margin-top:20px;">
+        <label>Nova senha</label>
+        <div class="input-wrap">
+          <input type="password" id="s5-p1" placeholder="Digite sua nova senha" oninput="checkReqs()">
+          <span class="iico" onclick="togglePass('s5-p1',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        </div>
+      </div>
+
+      <!-- Confirmar — gap 20px -->
+      <div class="field-m" style="margin-top:20px;">
+        <label>Confirmar nova senha</label>
+        <div class="input-wrap">
+          <input type="password" id="s5-p2" placeholder="Confirme sua nova senha" oninput="checkReqs()">
+          <span class="iico" onclick="togglePass('s5-p2',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        </div>
+      </div>
+
+      <!-- Requisitos — gap 20px -->
+      <div class="req-list" style="margin-top:20px;" id="s5-reqs">
+        <div class="req-item" id="r-len"><div class="req-dot"></div>Mínimo 8 caracteres</div>
+        <div class="req-item" id="r-upper"><div class="req-dot"></div>Uma letra maiúscula</div>
+        <div class="req-item" id="r-lower"><div class="req-dot"></div>Uma letra minúscula</div>
+        <div class="req-item" id="r-num"><div class="req-dot"></div>Um número</div>
+        <div class="req-item" id="r-sym"><div class="req-dot"></div>Um símbolo (!@#$...)</div>
+        <div class="req-item" id="r-match"><div class="req-dot"></div>Senhas coincidem</div>
+      </div>
+
+      <!-- Button — gap 20px -->
+      <div style="margin-top:20px;">
+        <button class="btn3d off" id="s5-btn" onclick="submitPass()">
+          <div class="sh"></div><div class="sf">Redefinir senha</div>
+        </button>
+      </div>
+
+    </div>
+    <div class="footer-txt">Plataforma Beewell</div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       S6 — ERRO DE VALIDAÇÃO (estado estático)
+       card: top 79px, h 798px
+  ════════════════════════════════════════ -->
+  <div class="screen" id="s6">
+    <div class="card" style="top:79px; height:798px;">
+
+      <img class="logo-img"
+           src="https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/2d25bc81-f408-44df-92aa-e3f7664c5f8b"
+           alt="BeeWell" onerror="this.style='display:none'">
+
+      <p class="sub-xl" style="margin-top:20px;">Crie sua nova senha</p>
+
+      <!-- Feedback banner — gap 20px -->
+      <div class="feedback" style="margin-top:20px;">
+        <span class="feedback-icon">⚠</span>
+        <p class="feedback-text">A senha não atende todos os requisitos de segurança.</p>
+      </div>
+
+      <!-- Nova senha — gap 20px -->
+      <div class="field-m" style="margin-top:20px;">
+        <label>Nova senha</label>
+        <div class="input-wrap">
+          <input type="password" value="abc123" class="err" id="s6-p1" placeholder="Digite sua nova senha" oninput="checkReqs6()">
+          <span class="iico" onclick="togglePass('s6-p1',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        </div>
+      </div>
+
+      <!-- Confirmar — gap 20px -->
+      <div class="field-m" style="margin-top:20px;">
+        <label>Confirmar nova senha</label>
+        <div class="input-wrap">
+          <input type="password" value="abc1234" class="err" id="s6-p2" placeholder="Confirme sua nova senha" oninput="checkReqs6()">
+          <span class="iico" onclick="togglePass('s6-p2',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        </div>
+      </div>
+
+      <!-- Requisitos — gap 20px (some failed) -->
+      <div class="req-list" style="margin-top:20px;" id="s6-reqs">
+        <div class="req-item ok"  id="r6-len">  <div class="req-dot"></div>Mínimo 8 caracteres</div>
+        <div class="req-item fail" id="r6-upper"><div class="req-dot"></div>Uma letra maiúscula</div>
+        <div class="req-item ok"  id="r6-lower"><div class="req-dot"></div>Uma letra minúscula</div>
+        <div class="req-item ok"  id="r6-num">  <div class="req-dot"></div>Um número</div>
+        <div class="req-item fail" id="r6-sym">  <div class="req-dot"></div>Um símbolo (!@#$...)</div>
+        <div class="req-item fail" id="r6-match"><div class="req-dot"></div>Senhas coincidem</div>
+      </div>
+
+      <!-- Button disabled — gap 20px -->
+      <div style="margin-top:20px;">
+        <button class="btn3d off" id="s6-btn" onclick="submitPass6()">
+          <div class="sh"></div><div class="sf">Redefinir senha</div>
+        </button>
+      </div>
+
+      <!-- Back — gap 20px -->
+      <button class="back-link" style="margin-top:20px;" onclick="go('s5'); clearPass5()">← Tentar novamente</button>
+
+    </div>
+    <div class="footer-txt">Plataforma Beewell</div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       S7 — SENHA ALTERADA COM SUCESSO
+       card: top 324px, h 308px
+  ════════════════════════════════════════ -->
+  <div class="screen" id="s7">
+    <div class="card" style="top:324px; height:308px;">
+
+      <!-- Sem logo — icon-sucesso começa a 40px do topo -->
+      <div class="icon-sucesso">✓</div>
+
+      <p style="font-size:22px; font-weight:700; color:#454545; text-align:center; margin-top:28px; line-height:100%;">Senha alterada!</p>
+
+      <p style="font-size:14px; font-weight:400; color:#5d5d5d; text-align:center; margin-top:28px; line-height:1.5;">Sua senha foi atualizada com sucesso.<br>Faça login com a nova senha.</p>
+
+      <!-- Button — gap 28px -->
+      <div style="margin-top:28px;">
+        <button class="btn3d" onclick="go('s1'); resetAll()">
+          <div class="sh"></div><div class="sf">Voltar para o login</div>
+        </button>
+      </div>
+
+    </div>
+    <div class="footer-txt">Plataforma Beewell</div>
+  </div>
+
+</div><!-- /frame -->
+
+<div class="indicator" id="ind"></div>
+
+<script>
+// ── Navigate ──
+function go(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+
+  // sync sidebar thumb
+  document.querySelectorAll('.sb-thumb').forEach(t => t.classList.remove('active'));
+  const thumb = document.getElementById('thumb-' + id);
+  if (thumb) {
+    thumb.classList.add('active');
+    thumb.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  const labels = { s1:'Login', s2:'Esqueci senha', s3:'Verificação OTP', s4:'Código inválido', s5:'Nova senha', s6:'Erro validação', s7:'Senha alterada' };
+  const ind = document.getElementById('ind');
+  ind.textContent = labels[id];
+  ind.classList.add('show');
+  clearTimeout(ind._t);
+  ind._t = setTimeout(() => ind.classList.remove('show'), 1800);
+}
+
+// ── Toggle flow section ──
+function toggleFlow(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+// ── Toggle password visibility ──
+function togglePass(id, btn) {
+  const inp = document.getElementById(id);
+  if (!inp) return;
+  const isPass = inp.type === 'password';
+  inp.type = isPass ? 'text' : 'password';
+  // swap eye icon
+  const svg = btn.querySelector('svg');
+  if (svg) svg.style.opacity = isPass ? '0.5' : '1';
+}
+
+// ── OTP logic ──
+const s3cells = () => [...document.querySelectorAll('#s3-otp .otp-cell')];
+
+document.addEventListener('DOMContentLoaded', () => {
+  s3cells().forEach((cell, i, cells) => {
+    cell.addEventListener('input', e => {
+      const v = e.target.value.replace(/\D/g, '');
+      e.target.value = v.slice(-1);
+      if (v && i < cells.length - 1) cells[i + 1].focus();
+    });
+    cell.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !e.target.value && i > 0) cells[i - 1].focus();
+    });
+    cell.addEventListener('paste', e => {
+      const p = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
+      if (p.length >= 6) {
+        cells.forEach((c, idx) => c.value = p[idx] || '');
+        cells[5].focus();
+        e.preventDefault();
+      }
+    });
+  });
+});
+
+function verifyOTP() {
+  const code = s3cells().map(c => c.value).join('');
+  if (code.length < 6) { s3cells()[0].focus(); return; }
+  // "111111" triggers invalid state
+  if (code === '111111') { go('s4'); return; }
+  go('s5');
+}
+
+function clearOTP() {
+  s3cells().forEach(c => { c.value = ''; c.classList.remove('err'); });
+  setTimeout(() => s3cells()[0].focus(), 100);
+}
+
+function resend() {
+  go('s3');
+  clearOTP();
+}
+
+// ── Timer ──
+let timerSecs = 111, timerInterval = null;
+
+function startTimer() {
+  clearInterval(timerInterval);
+  timerSecs = 111;
+  renderTimer();
+  timerInterval = setInterval(() => {
+    if (timerSecs > 0) { timerSecs--; renderTimer(); }
+    else clearInterval(timerInterval);
+  }, 1000);
+}
+
+function renderTimer() {
+  const el = document.getElementById('s3-timer');
+  if (!el) return;
+  const m = Math.floor(timerSecs / 60), s = timerSecs % 60;
+  el.textContent = `${m}m${String(s).padStart(2,'0')}s`;
+}
+
+// ── Password requirements (screen 5 — dynamic) ──
+const REQ_IDS = ['r-len','r-upper','r-lower','r-num','r-sym','r-match'];
+
+function checkReqs() {
+  const p1 = document.getElementById('s5-p1')?.value || '';
+  const p2 = document.getElementById('s5-p2')?.value || '';
+  const checks = [
+    p1.length >= 8,
+    /[A-Z]/.test(p1),
+    /[a-z]/.test(p1),
+    /[0-9]/.test(p1),
+    /[^A-Za-z0-9]/.test(p1),
+    p1 && p2 && p1 === p2
+  ];
+  let all = true;
+  checks.forEach((ok, i) => {
+    const el = document.getElementById(REQ_IDS[i]);
+    if (!el) return;
+    el.className = 'req-item' + (ok ? ' ok' : '');
+    if (!ok) all = false;
+  });
+  const btn = document.getElementById('s5-btn');
+  if (btn) { btn.classList.toggle('off', !all); }
+  return all;
+}
+
+function submitPass() {
+  if (checkReqs()) { go('s7'); }
+}
+
+// ── Password requirements (screen 6 — static error + dynamic on edit) ──
+function checkReqs6() {
+  const p1 = document.getElementById('s6-p1')?.value || '';
+  const p2 = document.getElementById('s6-p2')?.value || '';
+  const map = {
+    'r6-len':   p1.length >= 8,
+    'r6-upper': /[A-Z]/.test(p1),
+    'r6-lower': /[a-z]/.test(p1),
+    'r6-num':   /[0-9]/.test(p1),
+    'r6-sym':   /[^A-Za-z0-9]/.test(p1),
+    'r6-match': p1 && p2 && p1 === p2
+  };
+  let all = true;
+  for (const [id, ok] of Object.entries(map)) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.className = 'req-item' + (ok ? ' ok' : ' fail');
+    if (!ok) all = false;
+  }
+  const btn = document.getElementById('s6-btn');
+  if (btn) {
+    btn.classList.toggle('off', !all);
+    if (!all) {
+      btn.onclick = null;
+    } else {
+      btn.onclick = () => go('s7');
+    }
+  }
+  // update input border
+  const inp1 = document.getElementById('s6-p1');
+  const inp2 = document.getElementById('s6-p2');
+  if (inp1) inp1.className = all ? '' : 'err';
+  if (inp2) inp2.className = all ? '' : 'err';
+}
+
+function submitPass6() { go('s7'); }
+
+// ── Reset helpers ──
+function clearPass5() {
+  ['s5-p1','s5-p2'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+  checkReqs();
+}
+
+function resetAll() {
+  ['s1-email','s1-pass'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+  clearOTP();
+  clearPass5();
+}
+
+// ── Init ──
+startTimer();
+checkReqs();
+checkReqs6();
+</script>
+</body>
+</html>
